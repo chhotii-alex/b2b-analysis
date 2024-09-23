@@ -1,5 +1,6 @@
 from pathlib import Path
 import pandas as pd
+import time
 
 reldir = Path("..")
 datadir = reldir / "data"
@@ -38,9 +39,25 @@ def genes_of_type(filepath,
     df.drop(columns=['chain', 'rearrangement_type'], inplace=True)
     return df
 
-sequences = pd.concat([
-    genes_of_type(filepath) for filepath in sample_data_files()])
-print(sequences)
+def get_communities():
+    sequences = pd.concat([
+        genes_of_type(filepath) for filepath in sample_data_files()])
+    sequences["observed"] = 1
+    sequences["cdr3_len"] = sequences["cdr3_AA"].str.len()
+    communities = pd.pivot_table(sequences,
+                                 values="observed",
+                                 index=["Jgene", "Vgene", "cdr3_len", "cdr3_AA"],
+                                 columns=['biosample_name'],
+                                 aggfunc="sum", fill_value=0)
+    return communities
 
-    
+t0 = time.time()
+communities = get_communities()
+t1 = time.time()
+
+print("Time: ", (t1-t0))
+print("MB:")
+print(communities.memory_usage() / (1024*1024))
+print(communities.head(30))
+print(communities.shape)
         
