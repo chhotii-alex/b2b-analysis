@@ -92,29 +92,19 @@ def sparse_pivot(communities, sequences):
         sorted_seq[name] = abundances
     return sorted_seq
 
-def get_communities_sparse():
+def get_communities(use_sparse=True):
     communities = [(name_from_filepath(filepath), genes_of_type(filepath))
                 for filepath in sample_data_files()]
     sequences = pd.concat([df for (name, df) in communities])
 
-    return sparse_pivot(communities, sequences)
-
-def get_communities_dense():
-    communities = [(name_from_filepath(filepath), genes_of_type(filepath))
-                for filepath in sample_data_files()]
-    sequences = pd.concat([df for (name, df) in communities])
-
-    return pd.pivot_table(sequences,
+    if use_sparse:
+        return sparse_pivot(communities, sequences)
+    else:
+        return pd.pivot_table(sequences,
                                  values="observed",
                                  index=key_names,
                                  columns=['biosample_name'],
                                  aggfunc="sum", fill_value=0)
-
-def get_communities(use_sparse=True):
-    if use_sparse:
-        return get_communities_sparse()
-    else:
-        return get_communities_dense()
 
 # To time something put it between these lines:
 #t0 = time.time()
