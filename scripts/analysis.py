@@ -83,7 +83,8 @@ def sparse_pivot(communities, metacommunity, index):
     offsets = get_offsets(communities)
     metacommunity["original_index"] = metacommunity.index
     sorted_seq = metacommunity.sort_values(by=index, ignore_index=True)
-    dedup_indices = np.empty((metacommunity.shape[0]), dtype=int)
+    del metacommunity
+    dedup_indices = np.empty((sorted_seq.shape[0]), dtype=int)
     counter = -1
     prev = None
     for i in range(sorted_seq.shape[0]):
@@ -102,9 +103,8 @@ def sparse_pivot(communities, metacommunity, index):
 
     for i, (name, df) in enumerate(communities):
         abundances = np.zeros((sorted_seq.shape[0]), dtype=int)
-        for row in df.itertuples():
-            dedup_index = row.dedup_index
-            abundances[dedup_index] += row.observed
+        for dedup_index, observed in zip(df['dedup_index'], df['observed']):
+            abundances[dedup_index] = observed
         sorted_seq[name] = abundances
     return sorted_seq
 
