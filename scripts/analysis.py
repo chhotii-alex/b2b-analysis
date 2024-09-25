@@ -61,23 +61,39 @@ def get_offsets(communities):
         cum_total += df.shape[0]
     return offsets
 
-def sparse_pivot(communities, sequences):
-    sequences.reset_index(drop=True, inplace=True)
+def sparse_pivot(communities, metacommunity, index):
+    """
+    Equivalent to DataFrame.pivot_table on the DataFrame
+    passed as metacommunity, for a limited subset
+    of cases.
+    communities is a sequence of tuples. Each tuple consists
+    of a name and a DataFrame. metacommunity must be the
+    concatination (in order) of the DataFrames in the tuples.
+    - aggfunc is implied to be "sum".
+    - Rather than passing the name of the values column,
+    the values column MUST be named 'observed'.
+    - There is no columns parameter. Rather, the names of the
+    communities (the first item in each tuple in the communities
+    list) are taken to be the column names in the resulting pivot.
+    - fill_value is implied to be 0
+    - sort is implied to be True
+    - there is no option to create margins
+    """
+    metacommunity.reset_index(drop=True, inplace=True)
     offsets = get_offsets(communities)
-    sequences["original_index"] = sequences.index
-    sorted_seq = sequences.sort_values(by=key_names, ignore_index=True)
-    sequences['dedup_index'] = 0
-    dedup_indices = np.empty((sequences.shape[0]), dtype=int)
+    metacommunity["original_index"] = metacommunity.index
+    sorted_seq = metacommunity.sort_values(by=index, ignore_index=True)
+    dedup_indices = np.empty((metacommunity.shape[0]), dtype=int)
     counter = -1
     prev = None
     for i in range(sorted_seq.shape[0]):
         row = sorted_seq.iloc[i]
-        value = tuple(row[col] for col in key_names)
+        value = tuple(row[col] for col in index)
         if value != prev:
             counter += 1
             prev = value
         dedup_indices[row['original_index']] = counter
-    sorted_seq = pd.DataFrame(index=sorted_seq.groupby(key_names).count().index)
+    sorted_seq = pd.DataFrame(index=sorted_seq.groupby(index).count().index)
 
     for name, df in communities:
         offset = offsets[name]
@@ -92,13 +108,16 @@ def sparse_pivot(communities, sequences):
         sorted_seq[name] = abundances
     return sorted_seq
 
-def get_communities(use_sparse=True):
+def get_metacommunity(use_sparse=True):
     communities = [(name_from_filepath(filepath), genes_of_type(filepath))
                 for filepath in sample_data_files()]
     sequences = pd.concat([df for (name, df) in communities])
+    for name, df in communities:
+        df.drop(columns='biosample_name', inplace=True)
 
     if use_sparse:
-        return sparse_pivot(communities, sequences)
+        return sparse_pivot(communities, sequences,
+                            index=key_names)
     else:
         return pd.pivot_table(sequences,
                                  values="observed",
@@ -112,17 +131,22 @@ def get_communities(use_sparse=True):
 #print("Time: ", (t1-t0))
 
 c = {}
-for option in [True, False]:
-    communities = get_communities(option)
-    communities.reset_index(inplace=True)
-    c[option] = communities
+for option in [False, True]:
+    metacommunity = get_metacommunity(option)
+    metacommunity.reset_index(inplace=True)
+    c[option] = metacommunity
 
+# test that we got the same results either way
 for col in c[True].columns:
-    if not (c[True][col] == c[False][col]).all():
-        print("Discrepancy!", col)
+    assert (c[True][col] == c[False][col]).all()
 
+print(c[True].head(30))
+print(c[True].shape)
+
+
+"""
+how to view memory usage for data
 print("MB:")
 print(communities.memory_usage() / (1024*1024))
-print(communities.head(30))
-print(communities.shape)
+"""
         
