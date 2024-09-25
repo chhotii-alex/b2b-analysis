@@ -1,6 +1,7 @@
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from scipy import sparse
 import time
 
 key_names = ["Jgene", "Vgene", "cdr3_len", "cdr3_AA"]
@@ -101,11 +102,17 @@ def sparse_pivot(communities, metacommunity, index):
         n = df.shape[0]
         df["dedup_index"] = dedup_indices[offset:(offset+n)]
 
+    V = np.concatenate([np.array(df['observed']) for (name, df) in communities])
+    J = np.concatenate([np.full((df.shape[0],), i) for i, (name, df) in enumerate(communities)])
+    I = np.concatenate([np.array(df['dedup_index']) for (name, df) in communities])
+    assert V.shape == I.shape
+    assert I.shape == J.shape
+    rows = len(sorted_seq)
+    cols = len(communities)
+    B = sparse.coo_array((V,(I,J)),shape=(rows, cols)).tocsr()
+        
     for i, (name, df) in enumerate(communities):
-        abundances = np.zeros((sorted_seq.shape[0]), dtype=int)
-        for dedup_index, observed in zip(df['dedup_index'], df['observed']):
-            abundances[dedup_index] = observed
-        sorted_seq[name] = abundances
+        sorted_seq[name] = B[:, [i]].toarray()[:, 0]
     return sorted_seq
 
 def get_metacommunity(use_sparse=True):
@@ -130,20 +137,23 @@ def get_metacommunity(use_sparse=True):
 #t1 = time.time()
 #print("Time: ", (t1-t0))
 
-c = {}
-for option in [False, True]:
-    metacommunity = get_metacommunity(option)
-    metacommunity.reset_index(inplace=True)
-    c[option] = metacommunity
+def make_metacommunities():
+    c = {}
+    for option in [False, True]:
+        metacommunity = get_metacommunity(option)
+        metacommunity.reset_index(inplace=True)
+        c[option] = metacommunity
 
-# test that we got the same results either way
-for col in c[True].columns:
-    assert (c[True][col] == c[False][col]).all()
+    # test that we got the same results either way
+    for col in c[True].columns:
+        assert (c[True][col] == c[False][col]).all()
 
-print(c[True].head(30))
-print(c[True].shape)
+    print(c[True].head(30))
+    print(c[True].shape)
 
 
+make_metacommunities()
+    
 """
 how to view memory usage for data
 print("MB:")
