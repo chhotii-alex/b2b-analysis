@@ -62,6 +62,46 @@ def get_offsets(communities):
         cum_total += df.shape[0]
     return offsets
 
+def sort_and_dedup(metacommunity, index):
+    metacommunity.reset_index(drop=True, inplace=True)
+    metacommunity["original_index"] = metacommunity.index
+    sorted_seq = metacommunity.sort_values(by=index, ignore_index=True)
+    del metacommunity
+    dedup_indices = np.empty((sorted_seq.shape[0]), dtype=int)
+    counter = -1
+    prev = None
+    for i in range(sorted_seq.shape[0]):
+        row = sorted_seq.iloc[i]
+        value = tuple(row[col] for col in index)
+        if value != prev:
+            counter += 1
+            prev = value
+        dedup_indices[row['original_index']] = counter
+    sorted_seq = pd.DataFrame(index=sorted_seq.groupby(index).count().index)
+    return (sorted_seq, dedup_indices)
+
+def sparse_abundances(communities, seq_count, dedup_indices): 
+    offsets = get_offsets(communities)
+    for name, df in communities:
+        offset = offsets[name]
+        n = df.shape[0]
+        df["dedup_index"] = dedup_indices[offset:(offset+n)]
+
+    V = np.concatenate([np.array(df['observed']) for (name, df) in communities])
+    J = np.concatenate([np.full((df.shape[0],), i) for i, (name, df) in enumerate(communities)])
+    I = np.concatenate([np.array(df['dedup_index']) for (name, df) in communities])
+    assert V.shape == I.shape
+    assert I.shape == J.shape
+    rows = seq_count
+    cols = len(communities)
+    abundances = sparse.coo_array((V,(I,J)),shape=(rows, cols)).tocsr()
+    return abundances
+        
+def abundances_and_dedup(communities, metacommunity, index):
+    (sorted_seq, dedup_indices) = sort_and_dedup(metacommunity, index)
+    abundances = sparse_abundances(communities, len(sorted_seq), dedup_indices)    
+    return (sorted_seq, abundances)
+
 def sparse_pivot(communities, metacommunity, index):
     """
     Equivalent to DataFrame.pivot_table on the DataFrame
@@ -80,39 +120,9 @@ def sparse_pivot(communities, metacommunity, index):
     - sort is implied to be True
     - there is no option to create margins
     """
-    metacommunity.reset_index(drop=True, inplace=True)
-    offsets = get_offsets(communities)
-    metacommunity["original_index"] = metacommunity.index
-    sorted_seq = metacommunity.sort_values(by=index, ignore_index=True)
-    del metacommunity
-    dedup_indices = np.empty((sorted_seq.shape[0]), dtype=int)
-    counter = -1
-    prev = None
-    for i in range(sorted_seq.shape[0]):
-        row = sorted_seq.iloc[i]
-        value = tuple(row[col] for col in index)
-        if value != prev:
-            counter += 1
-            prev = value
-        dedup_indices[row['original_index']] = counter
-    sorted_seq = pd.DataFrame(index=sorted_seq.groupby(index).count().index)
-
-    for name, df in communities:
-        offset = offsets[name]
-        n = df.shape[0]
-        df["dedup_index"] = dedup_indices[offset:(offset+n)]
-
-    V = np.concatenate([np.array(df['observed']) for (name, df) in communities])
-    J = np.concatenate([np.full((df.shape[0],), i) for i, (name, df) in enumerate(communities)])
-    I = np.concatenate([np.array(df['dedup_index']) for (name, df) in communities])
-    assert V.shape == I.shape
-    assert I.shape == J.shape
-    rows = len(sorted_seq)
-    cols = len(communities)
-    B = sparse.coo_array((V,(I,J)),shape=(rows, cols)).tocsr()
-        
+    (sorted_seq, abundances) = abundances_and_dedup(communities, metacommunity, index)
     for i, (name, df) in enumerate(communities):
-        sorted_seq[name] = B[:, [i]].toarray()[:, 0]
+        sorted_seq[name] = abundances[:, [i]].toarray()[:, 0]
     return sorted_seq
 
 def get_metacommunity(use_sparse=True):
