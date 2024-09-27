@@ -12,12 +12,15 @@ datadir = reldir / "data"
 samplesdir = datadir / "Sample_Level_Data_Files"
 
 
-def sample_data_files():
+def sample_data_files(maxcount=6):
+    count = 0
     for filepath in samplesdir.iterdir():
         if not filepath.name.endswith("cdr3_report.csv"):
             continue
         yield filepath
-
+        count += 1
+        if count >= maxcount:
+            break
 
 def drop_rows_with_mask(df, drop_mask):
     dropped_indices = df[drop_mask].index
@@ -137,9 +140,10 @@ def sparse_pivot(communities, metacommunity, index):
     return sorted_seq
 
 
-def calculate_similarity(from_start, from_end, to_start, to_end):
-    return np.full((from_end - from_start, to_end - to_start), 1)
-
+def calculate_similarity(kmers, from_start, from_end, to_start, to_end):
+    a = kmers[from_start:from_end]
+    b = kmers[to_start:to_end].T
+    return a @ b
 
 def make_kmer_vectors(sorted_seq):
     calc = KmerDistanceCalculator(3)
@@ -165,7 +169,6 @@ def make_kmer_vectors(sorted_seq):
 
 def make_similarity(sorted_seq):
     kmers = make_kmer_vectors(sorted_seq)
-    print(kmers.toarray())
     n = sorted_seq.shape[0]
     lil = sparse.lil_array((n, n), dtype=float)
     sorted_seq["index"] = sorted_seq.index
@@ -191,7 +194,7 @@ def make_similarity(sorted_seq):
                 to_end = breaks.iloc[j + 1]["index"]
             else:
                 to_end = n
-            s = calculate_similarity(from_start, from_end, to_start, to_end)
+            s = calculate_similarity(kmers, from_start, from_end, to_start, to_end)
             lil[from_start:from_end, to_start:to_end] = s
             if from_start != to_start:
                 lil[to_start:to_end, from_start:from_end] = s.T
@@ -210,19 +213,22 @@ def get_metacommunity():
     (sorted_seq, abundances) = abundances_and_dedup(communities, sequences, key_names)
     sorted_seq.reset_index(drop=False, inplace=True)
     print(sorted_seq)
-    print(abundances.toarray())
+    #print(abundances.toarray())
     similarity = make_similarity(sorted_seq)
-    print(similarity)
-    print(similarity.toarray())
+    #print(similarity)
+    #print(similarity.toarray())
 
+    effective_counts = similarity @ abundances
+    print(effective_counts)
+    print(type(effective_counts))
+    #print(effective_counts.toarray())
 
-# To time something put it between these lines:
-# t0 = time.time()
-# t1 = time.time()
-# print("Time: ", (t1-t0))
 
 if __name__ == '__main__':
+    t0 = time.time()
     get_metacommunity()
+    t1 = time.time()
+    print("Time: ", (t1-t0))
 
 """
 how to view memory usage for data
