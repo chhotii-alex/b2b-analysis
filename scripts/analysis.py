@@ -11,49 +11,53 @@ reldir = Path("..")
 datadir = reldir / "data"
 samplesdir = datadir / "Sample_Level_Data_Files"
 
+
 def sample_data_files():
     for filepath in samplesdir.iterdir():
         if not filepath.name.endswith("cdr3_report.csv"):
             continue
         yield filepath
 
+
 def drop_rows_with_mask(df, drop_mask):
     dropped_indices = df[drop_mask].index
     df.drop(index=dropped_indices, inplace=True)
     df.reset_index(drop=True, inplace=True)
 
+
 def name_from_filepath(filepath):
     name = filepath.name
     return name[:12]
-    
-def genes_of_type(filepath,
-                  chain="IGH",
-                  functional=True):
+
+
+def genes_of_type(filepath, chain="IGH", functional=True):
     interesting_columns = [
-        'cdr3_AA',
-        'Vgene',
-        'Jgene',
-        'chain',
-        'rearrangement_type',
-        'biosample_name']
+        "cdr3_AA",
+        "Vgene",
+        "Jgene",
+        "chain",
+        "rearrangement_type",
+        "biosample_name",
+    ]
     df = pd.read_csv(filepath, usecols=interesting_columns)
-    drop_mask = df['chain'] != chain
+    drop_mask = df["chain"] != chain
     drop_rows_with_mask(df, drop_mask)
     if functional:
         type_tag = "functional"
     else:
         type_tag = "nonfunctional"
-    drop_mask = df['rearrangement_type'] != type_tag
+    drop_mask = df["rearrangement_type"] != type_tag
     drop_rows_with_mask(df, drop_mask)
-    df.drop(columns=['chain', 'rearrangement_type'], inplace=True)
-    df['cdr3_len'] = df["cdr3_AA"].str.len()
-    too_short_mask = (df['cdr3_len'] < 3)
+    df.drop(columns=["chain", "rearrangement_type"], inplace=True)
+    df["cdr3_len"] = df["cdr3_AA"].str.len()
+    too_short_mask = df["cdr3_len"] < 3
     if too_short_mask.sum():
         drop_rows_with_mask(df, too_short_mask)
     df["observed"] = 1
-    df = df.groupby(key_names + ['biosample_name']).count()
+    df = df.groupby(key_names + ["biosample_name"]).count()
     df.reset_index(drop=False, inplace=True)
     return df
+
 
 def get_offsets(communities):
     cum_total = 0
@@ -62,6 +66,7 @@ def get_offsets(communities):
         offsets[name] = cum_total
         cum_total += df.shape[0]
     return offsets
+
 
 def sort_and_dedup(metacommunity, index):
     metacommunity.reset_index(drop=True, inplace=True)
@@ -77,31 +82,36 @@ def sort_and_dedup(metacommunity, index):
         if value != prev:
             counter += 1
             prev = value
-        dedup_indices[row['original_index']] = counter
+        dedup_indices[row["original_index"]] = counter
     sorted_seq = pd.DataFrame(index=sorted_seq.groupby(index).count().index)
     return (sorted_seq, dedup_indices)
 
-def sparse_abundances(communities, seq_count, dedup_indices): 
+
+def sparse_abundances(communities, seq_count, dedup_indices):
     offsets = get_offsets(communities)
     for name, df in communities:
         offset = offsets[name]
         n = df.shape[0]
-        df["dedup_index"] = dedup_indices[offset:(offset+n)]
+        df["dedup_index"] = dedup_indices[offset : (offset + n)]
 
-    V = np.concatenate([np.array(df['observed']) for (name, df) in communities])
-    J = np.concatenate([np.full((df.shape[0],), i) for i, (name, df) in enumerate(communities)])
-    I = np.concatenate([np.array(df['dedup_index']) for (name, df) in communities])
+    V = np.concatenate([np.array(df["observed"]) for (name, df) in communities])
+    J = np.concatenate(
+        [np.full((df.shape[0],), i) for i, (name, df) in enumerate(communities)]
+    )
+    I = np.concatenate([np.array(df["dedup_index"]) for (name, df) in communities])
     assert V.shape == I.shape
     assert I.shape == J.shape
     rows = seq_count
     cols = len(communities)
-    abundances = sparse.coo_array((V,(I,J)),shape=(rows, cols)).tocsr()
+    abundances = sparse.coo_array((V, (I, J)), shape=(rows, cols)).tocsr()
     return abundances
-        
+
+
 def abundances_and_dedup(communities, metacommunity, index):
     (sorted_seq, dedup_indices) = sort_and_dedup(metacommunity, index)
-    abundances = sparse_abundances(communities, len(sorted_seq), dedup_indices)    
+    abundances = sparse_abundances(communities, len(sorted_seq), dedup_indices)
     return (sorted_seq, abundances)
+
 
 def sparse_pivot(communities, metacommunity, index):
     """
@@ -126,8 +136,10 @@ def sparse_pivot(communities, metacommunity, index):
         sorted_seq[name] = abundances[:, [i]].toarray()[:, 0]
     return sorted_seq
 
+
 def calculate_similarity(from_start, from_end, to_start, to_end):
-    return np.full((from_end-from_start,to_end-to_start), 1)
+    return np.full((from_end - from_start, to_end - to_start), 1)
+
 
 def make_kmer_vectors(sorted_seq):
     calc = KmerDistanceCalculator(3)
@@ -144,36 +156,39 @@ def make_kmer_vectors(sorted_seq):
     V = np.concatenate(Vs)
     J = np.concatenate(Js)
     I = np.concatenate(Is)
-    kmers = sparse.coo_array((V,(I,J)),
-                             shape=(sorted_seq.shape[0],
-                                    len(calc.omega))).tocsr()
+    kmers = sparse.coo_array(
+        (V, (I, J)), shape=(sorted_seq.shape[0], len(calc.omega))
+    ).tocsr()
     print("...done!")
     return kmers
+
 
 def make_similarity(sorted_seq):
     kmers = make_kmer_vectors(sorted_seq)
     print(kmers.toarray())
     n = sorted_seq.shape[0]
     lil = sparse.lil_array((n, n), dtype=float)
-    sorted_seq['index'] = sorted_seq.index
-    breaks = sorted_seq.drop_duplicates(subset=["Jgene", "Vgene", "cdr3_len"]).drop(columns="cdr3_AA")
+    sorted_seq["index"] = sorted_seq.index
+    breaks = sorted_seq.drop_duplicates(subset=["Jgene", "Vgene", "cdr3_len"]).drop(
+        columns="cdr3_AA"
+    )
     for i in range(breaks.shape[0]):
         for j in range(i, breaks.shape[0]):
-            if breaks.iloc[i]['Vgene'] != breaks.iloc[j]['Vgene']:
+            if breaks.iloc[i]["Vgene"] != breaks.iloc[j]["Vgene"]:
                 break
-            if breaks.iloc[i]['Jgene'] != breaks.iloc[j]['Jgene']:
+            if breaks.iloc[i]["Jgene"] != breaks.iloc[j]["Jgene"]:
                 break
-            len_diff = breaks.iloc[j]['cdr3_len'] - breaks.iloc[i]['cdr3_len']
+            len_diff = breaks.iloc[j]["cdr3_len"] - breaks.iloc[i]["cdr3_len"]
             if len_diff > 4:  # TODO: parameterize this
                 break
-            from_start = breaks.iloc[i]['index']
-            if i+1 < breaks.shape[0]:
-                from_end = breaks.iloc[i+1]['index']
+            from_start = breaks.iloc[i]["index"]
+            if i + 1 < breaks.shape[0]:
+                from_end = breaks.iloc[i + 1]["index"]
             else:
                 from_end = n
-            to_start = breaks.iloc[j]['index']
-            if j+1 < breaks.shape[0]:
-                to_end = breaks.iloc[j+1]['index']
+            to_start = breaks.iloc[j]["index"]
+            if j + 1 < breaks.shape[0]:
+                to_end = breaks.iloc[j + 1]["index"]
             else:
                 to_end = n
             s = calculate_similarity(from_start, from_end, to_start, to_end)
@@ -182,12 +197,15 @@ def make_similarity(sorted_seq):
                 lil[to_start:to_end, from_start:from_end] = s.T
     return lil.tocsr()
 
+
 def get_metacommunity():
-    communities = [(name_from_filepath(filepath), genes_of_type(filepath))
-                for filepath in sample_data_files()]
+    communities = [
+        (name_from_filepath(filepath), genes_of_type(filepath))
+        for filepath in sample_data_files()
+    ]
     sequences = pd.concat([df for (name, df) in communities])
     for name, df in communities:
-        df.drop(columns='biosample_name', inplace=True)
+        df.drop(columns="biosample_name", inplace=True)
 
     (sorted_seq, abundances) = abundances_and_dedup(communities, sequences, key_names)
     sorted_seq.reset_index(drop=False, inplace=True)
@@ -197,16 +215,16 @@ def get_metacommunity():
     print(similarity)
     print(similarity.toarray())
 
+
 # To time something put it between these lines:
-#t0 = time.time()
-#t1 = time.time()
-#print("Time: ", (t1-t0))
+# t0 = time.time()
+# t1 = time.time()
+# print("Time: ", (t1-t0))
 
 get_metacommunity()
-    
+
 """
 how to view memory usage for data
 print("MB:")
 print(communities.memory_usage() / (1024*1024))
 """
-        
