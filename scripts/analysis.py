@@ -221,7 +221,8 @@ def get_metacommunity():
 # t1 = time.time()
 # print("Time: ", (t1-t0))
 
-get_metacommunity()
+if __name__ == '__main__':
+    get_metacommunity()
 
 """
 how to view memory usage for data

@@ -19,7 +19,7 @@ class KmerDistanceCalculator:
         counts = self.count_kmers(sequence)
         v = [counts[kmer] for kmer in self.omega]
         if normalize:
-            L2 = np.sum([num * num for kmer, num in counts.items()])
+            L2 = np.sqrt(np.sum([num * num for kmer, num in counts.items()]))
             v = [count / L2 for count in v]
         return v
 
@@ -31,7 +31,7 @@ class KmerDistanceCalculator:
         """
         counts = self.count_kmers(sequence)
         if normalize:
-            L2 = np.sum([num * num for kmer, num in counts.items()])
+            L2 = np.sqrt(np.sum([num * num for kmer, num in counts.items()]))
             dtype = float
         else:
             L2 = 1
