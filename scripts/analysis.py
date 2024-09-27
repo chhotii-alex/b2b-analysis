@@ -125,44 +125,40 @@ def sparse_pivot(communities, metacommunity, index):
         sorted_seq[name] = abundances[:, [i]].toarray()[:, 0]
     return sorted_seq
 
-def get_metacommunity(use_sparse=True):
+def make_similarity(sorted_seq):
+    n = sorted_seq.shape[0]
+    lil = sparse.lil_array((n, n), dtype=float)
+    breaks = sorted_seq.drop_duplicates(subset=["Jgene", "Vgene", "cdr3_len"]).drop(columns="cdr3_AA")
+    for i, row in enumerate(breaks.itertuples()):
+        for j, col in enumerate(breaks[i:].itertuples()):
+            if row.Vgene != col.Vgene:
+                break
+            if row.Jgene != col.Jgene:
+                break
+            if (col.cdr3_len - row.cdr3_len) > 4:
+                break
+            fromStart = row.Index
+            assert breaks.iloc[i]['Vgene'] == row.Vgene
+
+def get_metacommunity():
     communities = [(name_from_filepath(filepath), genes_of_type(filepath))
                 for filepath in sample_data_files()]
     sequences = pd.concat([df for (name, df) in communities])
     for name, df in communities:
         df.drop(columns='biosample_name', inplace=True)
 
-    if use_sparse:
-        return sparse_pivot(communities, sequences,
-                            index=key_names)
-    else:
-        return pd.pivot_table(sequences,
-                                 values="observed",
-                                 index=key_names,
-                                 columns=['biosample_name'],
-                                 aggfunc="sum", fill_value=0)
+    (sorted_seq, abundances) = abundances_and_dedup(communities, sequences, key_names)
+    sorted_seq.reset_index(drop=False, inplace=True)
+    print(sorted_seq)
+    print(abundances.toarray())
+    make_similarity(sorted_seq)
 
 # To time something put it between these lines:
 #t0 = time.time()
 #t1 = time.time()
 #print("Time: ", (t1-t0))
 
-def make_metacommunities():
-    c = {}
-    for option in [False, True]:
-        metacommunity = get_metacommunity(option)
-        metacommunity.reset_index(inplace=True)
-        c[option] = metacommunity
-
-    # test that we got the same results either way
-    for col in c[True].columns:
-        assert (c[True][col] == c[False][col]).all()
-
-    print(c[True].head(30))
-    print(c[True].shape)
-
-
-make_metacommunities()
+get_metacommunity()
     
 """
 how to view memory usage for data
