@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 import time
+from kmer import KmerDistanceCalculator
 
 key_names = ["Jgene", "Vgene", "cdr3_len", "cdr3_AA"]
 
@@ -125,20 +126,61 @@ def sparse_pivot(communities, metacommunity, index):
         sorted_seq[name] = abundances[:, [i]].toarray()[:, 0]
     return sorted_seq
 
+def calculate_similarity(from_start, from_end, to_start, to_end):
+    return np.full((from_end-from_start,to_end-to_start), 1)
+
+def make_kmer_vectors(sorted_seq):
+    calc = KmerDistanceCalculator(3)
+    print("Making kmer vectors...")
+    Vs = []
+    Js = []
+    Is = []
+    for i, row in enumerate(sorted_seq.itertuples()):
+        V, J = calc.kmer_vector_sparse(row.cdr3_AA)
+        I = np.full_like(V, i)
+        Vs.append(V)
+        Js.append(J)
+        Is.append(I)
+    V = np.concatenate(Vs)
+    J = np.concatenate(Js)
+    I = np.concatenate(Is)
+    kmers = sparse.coo_array((V,(I,J)),
+                             shape=(sorted_seq.shape[0],
+                                    len(calc.omega))).tocsr()
+    print("...done!")
+    return kmers
+
 def make_similarity(sorted_seq):
+    kmers = make_kmer_vectors(sorted_seq)
+    print(kmers.toarray())
     n = sorted_seq.shape[0]
     lil = sparse.lil_array((n, n), dtype=float)
+    sorted_seq['index'] = sorted_seq.index
     breaks = sorted_seq.drop_duplicates(subset=["Jgene", "Vgene", "cdr3_len"]).drop(columns="cdr3_AA")
-    for i, row in enumerate(breaks.itertuples()):
-        for j, col in enumerate(breaks[i:].itertuples()):
-            if row.Vgene != col.Vgene:
+    for i in range(breaks.shape[0]):
+        for j in range(i, breaks.shape[0]):
+            if breaks.iloc[i]['Vgene'] != breaks.iloc[j]['Vgene']:
                 break
-            if row.Jgene != col.Jgene:
+            if breaks.iloc[i]['Jgene'] != breaks.iloc[j]['Jgene']:
                 break
-            if (col.cdr3_len - row.cdr3_len) > 4:
+            len_diff = breaks.iloc[j]['cdr3_len'] - breaks.iloc[i]['cdr3_len']
+            if len_diff > 4:  # TODO: parameterize this
                 break
-            fromStart = row.Index
-            assert breaks.iloc[i]['Vgene'] == row.Vgene
+            from_start = breaks.iloc[i]['index']
+            if i+1 < breaks.shape[0]:
+                from_end = breaks.iloc[i+1]['index']
+            else:
+                from_end = n
+            to_start = breaks.iloc[j]['index']
+            if j+1 < breaks.shape[0]:
+                to_end = breaks.iloc[j+1]['index']
+            else:
+                to_end = n
+            s = calculate_similarity(from_start, from_end, to_start, to_end)
+            lil[from_start:from_end, to_start:to_end] = s
+            if from_start != to_start:
+                lil[to_start:to_end, from_start:from_end] = s.T
+    return lil.tocsr()
 
 def get_metacommunity():
     communities = [(name_from_filepath(filepath), genes_of_type(filepath))
@@ -151,7 +193,9 @@ def get_metacommunity():
     sorted_seq.reset_index(drop=False, inplace=True)
     print(sorted_seq)
     print(abundances.toarray())
-    make_similarity(sorted_seq)
+    similarity = make_similarity(sorted_seq)
+    print(similarity)
+    print(similarity.toarray())
 
 # To time something put it between these lines:
 #t0 = time.time()
