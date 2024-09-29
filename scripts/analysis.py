@@ -167,6 +167,11 @@ def make_kmer_vectors(sorted_seq):
 def make_similarity(sorted_seq):
     kmers = make_kmer_vectors(sorted_seq)
     n = sorted_seq.shape[0]
+    # Motivation for selection of lil_array:
+    # bsr_array does not support slicing, so how to assign to rectangular section?
+    # coo_array or dia_array does not support item assignment, so how to assign?
+    # csc_array or csr_array, when assigning, gives a warning that changing the sparsity ineffecient, lil recommended
+    # dok_array is vastly slower; it's both vastly slower to assign by numeric index, and to convert to csr format.
     lil = sparse.lil_array((n, n), dtype=float)
     sorted_seq["index"] = sorted_seq.index
     breaks = sorted_seq.drop_duplicates(subset=["Jgene", "Vgene", "cdr3_len"]).drop(
@@ -247,13 +252,13 @@ def get_metacommunity(file_count):
     print("Did make_similarity")
     del sorted_seq
     effective_counts = similarity @ abundances
-    return n
+    return n, effective_counts
 
 def big_o_what():
     times = {}
     for file_count in [2, 4, 8, 16]:
         t0 = time.time()
-        n = get_metacommunity(file_count)
+        n, _ = get_metacommunity(file_count)
         t1 = time.time()
         print("Time: ", (t1-t0))
         print(n / (t1-t0))

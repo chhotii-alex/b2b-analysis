@@ -6,7 +6,11 @@ import numpy as np
 class KmerDistanceCalculator:
     def __init__(self, k, alphabet="ARNDCEQGHILKMFPSTWYV"):
         self.k = k
-        self.omega = ["".join(t) for t in product(alphabet, repeat=k)]
+        self.alphabet = sorted(alphabet)
+        self.omega = ["".join(t) for t in product(self.alphabet, repeat=k)]
+        self.index = {}
+        for i, letter in enumerate(self.alphabet):
+            self.index[letter] = i
 
     def count_kmers(self, sequence):
         counts = defaultdict(int)
@@ -23,6 +27,13 @@ class KmerDistanceCalculator:
             v = [count / L2 for count in v]
         return v
 
+    def omega_offset(self, kmer):
+        total = 0
+        for i, letter in enumerate(kmer):
+            total = total * len(self.alphabet)
+            total += self.index[letter]
+        return total
+
     def kmer_vector_sparse(self, sequence, normalize=True):
         """
         Return counts and indices of only those kmers that are
@@ -38,10 +49,7 @@ class KmerDistanceCalculator:
             dtype = int
         V = np.empty((len(counts),), dtype=dtype)
         J = np.empty((len(counts),), dtype=dtype)
-        counter = 0
-        for i, kmer in enumerate(self.omega):
-            if kmer in counts:
-                V[counter] = counts[kmer] / L2
-                J[counter] = i
-                counter += 1
+        for i, kmer in enumerate(sorted(counts.keys())):
+            V[i] = counts[kmer] / L2
+            J[i] = self.omega_offset(kmer)
         return V, J
