@@ -40,7 +40,6 @@ def genes_of_type(filepath, chain="IGH", functional=True):
         "Jgene",
         "chain",
         "rearrangement_type",
-        "biosample_name",
     ]
     df = pd.read_csv(filepath, usecols=interesting_columns)
     drop_mask = df["chain"] != chain
@@ -57,7 +56,7 @@ def genes_of_type(filepath, chain="IGH", functional=True):
     if too_short_mask.sum():
         drop_rows_with_mask(df, too_short_mask)
     df["observed"] = 1
-    df = df.groupby(key_names + ["biosample_name"]).count()
+    df = df.groupby(key_names).count()
     df.reset_index(drop=False, inplace=True)
     return df
 
@@ -206,8 +205,6 @@ def get_metacommunity(file_count):
     ]
     sequences = pd.concat([df for (name, df) in communities])
     n = sequences.shape[0]
-    for name, df in communities:
-        df.drop(columns="biosample_name", inplace=True)
 
     (sorted_seq, abundances) = abundances_and_dedup(communities, sequences, key_names)
     sorted_seq.reset_index(drop=False, inplace=True)
