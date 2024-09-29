@@ -197,27 +197,56 @@ def make_similarity(sorted_seq):
                 lil[to_start:to_end, from_start:from_end] = s.T
     return lil.tocsr()
 
+def concat_community(communities):
+    sequences = pd.concat([df for (name, df) in communities])
+    n = sequences.shape[0]
+    return sequences, n
+
+def convert_index_to_columns(df):
+    df.reset_index(drop=False, inplace=True)
+
+def profile_similiarity(similarity):
+    """
+    Print out kind of a histogram to show distribution of
+    non-zero similarity values.
+    As it is currently written, do not call this on a large dataset.
+    """
+    dense = similarity.toarray()
+    num_bins = 20
+    count = dense.shape[0]*(dense.shape[0])
+    cum = 0.0
+    for x in range(num_bins):
+        lower = x/num_bins
+        upper = (x+1)/num_bins
+        mask = (dense > lower) & (dense <= upper)
+        frac = mask.sum()/count
+        cum += frac
+        print("(%f, %f]: %f : %f" % (lower, upper, frac, cum))
+    print(similarity.nnz / count)
 
 def get_metacommunity(file_count):
+    """
+    Things to try:
+    * try all different sparse data structure options
+    * do similarity in stripes (like greylock (use greylock?))
+    """
     communities = [
         (name_from_filepath(filepath), genes_of_type(filepath))
         for filepath in sample_data_files(file_count)
     ]
-    sequences = pd.concat([df for (name, df) in communities])
-    n = sequences.shape[0]
+    sequences, n = concat_community(communities)
+    print("Did concat_community")
 
     (sorted_seq, abundances) = abundances_and_dedup(communities, sequences, key_names)
-    sorted_seq.reset_index(drop=False, inplace=True)
-    #print(sorted_seq)
-    #print(abundances.toarray())
+    print("Did abundances_and_dedup")
+    del communities
+    del sequences
+    convert_index_to_columns(sorted_seq)
     similarity = make_similarity(sorted_seq)
-    #print(similarity)
-    #print(similarity.toarray())
-
+    #profile_similiarity(similarity)
+    print("Did make_similarity")
+    del sorted_seq
     effective_counts = similarity @ abundances
-    #print(effective_counts)
-    #print(type(effective_counts))
-    #print(effective_counts.toarray())
     return n
 
 def big_o_what():
@@ -240,4 +269,4 @@ print(communities.memory_usage() / (1024*1024))
 """
 
 if __name__ == '__main__':
-    get_metacommunity(16)
+    get_metacommunity(8)
