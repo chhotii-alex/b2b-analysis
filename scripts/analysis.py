@@ -147,7 +147,6 @@ def calculate_similarity(kmers, from_start, from_end, to_start, to_end):
 
 def make_kmer_vectors(sorted_seq):
     calc = KmerDistanceCalculator(3)
-    print("Making kmer vectors...")
     Vs = []
     Js = []
     Is = []
@@ -163,7 +162,6 @@ def make_kmer_vectors(sorted_seq):
     kmers = sparse.coo_array(
         (V, (I, J)), shape=(sorted_seq.shape[0], len(calc.omega))
     ).tocsr()
-    print("...done!")
     return kmers
 
 
@@ -201,37 +199,48 @@ def make_similarity(sorted_seq):
     return lil.tocsr()
 
 
-def get_metacommunity():
+def get_metacommunity(file_count):
     communities = [
         (name_from_filepath(filepath), genes_of_type(filepath))
-        for filepath in sample_data_files()
+        for filepath in sample_data_files(file_count)
     ]
     sequences = pd.concat([df for (name, df) in communities])
+    n = sequences.shape[0]
     for name, df in communities:
         df.drop(columns="biosample_name", inplace=True)
 
     (sorted_seq, abundances) = abundances_and_dedup(communities, sequences, key_names)
     sorted_seq.reset_index(drop=False, inplace=True)
-    print(sorted_seq)
+    #print(sorted_seq)
     #print(abundances.toarray())
     similarity = make_similarity(sorted_seq)
     #print(similarity)
     #print(similarity.toarray())
 
     effective_counts = similarity @ abundances
-    print(effective_counts)
-    print(type(effective_counts))
+    #print(effective_counts)
+    #print(type(effective_counts))
     #print(effective_counts.toarray())
+    return n
 
-
-if __name__ == '__main__':
-    t0 = time.time()
-    get_metacommunity()
-    t1 = time.time()
-    print("Time: ", (t1-t0))
-
+def big_o_what():
+    times = {}
+    for file_count in [2, 4, 8, 16]:
+        t0 = time.time()
+        n = get_metacommunity(file_count)
+        t1 = time.time()
+        print("Time: ", (t1-t0))
+        print(n / (t1-t0))
+        times[n] = (t1-t0)
+    print()
+    for n, seconds in times.items():
+        print(n, seconds, n/seconds)
+        
 """
 how to view memory usage for data
 print("MB:")
 print(communities.memory_usage() / (1024*1024))
 """
+
+if __name__ == '__main__':
+    get_metacommunity(16)
