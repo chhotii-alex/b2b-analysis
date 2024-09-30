@@ -80,7 +80,7 @@ devoted to noting 0 instances of a sequence found in some other sample. In a met
 overlap, each abundance vector would have an expected density of 1/n. 
 
 Through the use of `scipy.sparse` sparse array data structures, I have been so far able to process IGH sequences from 
-8 (?) samples on my laptop&mdash;that is, to create the abundance and similarity matrices, and multipy these to produce the 
+8 samples on my laptop&mdash;that is, to create the abundance and similarity matrices, and multipy these to produce the 
 resulting effective species counts, without swapping. Without the use of sparse matrices, the data would 
 enormously exceed the size of RAM.
-of RAM 
+
