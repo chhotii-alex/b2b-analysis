@@ -58,4 +58,29 @@ But this still leaves a huge problem.
 
 It's important that we use a fast and effiecient calculation of similarity between any two sequences, given that we have
 to do $O(n^2)$ such calculations. A task for the future is to look at motif-extraction algorithms, and basing similarity
-on the presence or absence of such motifs. For now, I am exploring the use of kmer count vectors, with k=3. 
+on the presence or absence of such motifs. For now, I am exploring the use of kmer count vectors, with k=3. Rather than 
+using the traditional definition of kmer distance, I'm using cosine similarity, because it is very quick to 
+calculate dot products of all vectors in one set with all vectors in another set, as a matrix multiplication. 
+
+Something to note is that these kmer vectors are _very sparse_. There are $20^3 = 8,000$ 3-mers of amino acids; most
+cdr3 sequences are less than 20 amino acids in length; thus, density is well under 1%. Key to keeping this computationally
+tractable is keeping the data structures small enough to fit into RAM, because swapping slows down processing so very much.
+Thus, the kmer vectors are stacked into a sparse matrix.
+
+A measure that Braun et al. took to make the calculation of a similarity matrix tractable was to consider the similarity
+between two cdr3 sequences to be zero if they did not derive from the same V and J genes. Given that there are 6 J genes,
+and about 40 V genes, any one cdr3 has the same V and J assignments as only about 0.4% of the cdr3 sequences in the 
+population. By only calculating similarity between cdr3 sequences that share V and J genes, we should be able to create
+a similarity matrix that has only about 0.4% density. (Admittedly, this will lose some information: there can be cdr3
+sequences that are exactly the same in spite of differing germ line segments.)
+
+Furthermore, the abundance matrix (the compilation of abundance vectors for each community) is extremely sparse. 
+Given that there is very little overlap in sequences observed across samples, most of any one abundance vector is 
+devoted to noting 0 instances of a sequence found in some other sample. In a metacommunity of n communities, with no
+overlap, each abundance vector would have an expected density of 1/n. 
+
+Through the use of `scipy.sparse` sparse array data structures, I have been so far able to process IGH sequences from 
+8 (?) samples on my laptop&mdash;that is, to create the abundance and similarity matrices, and multipy these to produce the 
+resulting effective species counts, without swapping. Without the use of sparse matrices, the data would 
+enormously exceed the size of RAM.
+of RAM 
