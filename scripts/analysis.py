@@ -33,7 +33,8 @@ def name_from_filepath(filepath):
     return name[:12]
 
 
-def genes_of_type(filepath, chain="IGH", functional=True):
+def genes_of_type(filepath, chain="IGH", functional=True,
+                  jgene=None):
     interesting_columns = [
         "cdr3_AA",
         "Vgene",
@@ -51,6 +52,9 @@ def genes_of_type(filepath, chain="IGH", functional=True):
     drop_mask = df["rearrangement_type"] != type_tag
     drop_rows_with_mask(df, drop_mask)
     df.drop(columns=["chain", "rearrangement_type"], inplace=True)
+    if jgene is not None:
+        mask = df['Jgene'] != jgene
+        drop_rows_with_mask(df, mask)
     df["cdr3_len"] = df["cdr3_AA"].str.len()
     too_short_mask = df["cdr3_len"] < 3
     if too_short_mask.sum():
@@ -229,30 +233,48 @@ def profile_similiarity(similarity):
         print("(%f, %f]: %f : %f" % (lower, upper, frac, cum))
     print(similarity.nnz / count)
 
+def get_distinct_J_genes(file_count):
+    all_j = set()
+    for filepath in sample_data_files(file_count):
+        df = genes_of_type(filepath)
+        all_j |= set(df['Jgene'].unique())
+    return sorted(list(all_j))
+
 def get_metacommunity(file_count):
     """
     Things to try:
     * try all different sparse data structure options
     * do similarity in stripes (like greylock (use greylock?))
     """
-    communities = [
-        (name_from_filepath(filepath), genes_of_type(filepath))
-        for filepath in sample_data_files(file_count)
-    ]
-    sequences, n = concat_community(communities)
-    print("Did concat_community")
+    total_n = 0
+    all_effective_counts = None
+    for j_gene in  get_distinct_J_genes(file_count):
+        communities = [
+            (name_from_filepath(filepath), genes_of_type(filepath, jgene=j_gene))
+            for filepath in sample_data_files(file_count)
+        ]
+        sequences, n = concat_community(communities)
+        print("Did concat_community")
 
-    (sorted_seq, abundances) = abundances_and_dedup(communities, sequences, key_names)
-    print("Did abundances_and_dedup")
-    del communities
-    del sequences
-    convert_index_to_columns(sorted_seq)
-    similarity = make_similarity(sorted_seq)
-    #profile_similiarity(similarity)
-    print("Did make_similarity")
-    del sorted_seq
-    effective_counts = similarity @ abundances
-    return n, effective_counts
+        (sorted_seq, abundances) = abundances_and_dedup(communities, sequences, key_names)
+        print("Did abundances_and_dedup")
+        del communities
+        del sequences
+        convert_index_to_columns(sorted_seq)
+        similarity = make_similarity(sorted_seq)
+        #profile_similiarity(similarity)
+        print("Did make_similarity")
+        del sorted_seq
+        effective_counts = similarity @ abundances
+        if all_effective_counts is None:
+            all_effective_counts = effective_counts
+        else:
+            all_effective_counts = sparse.vstack((all_effective_counts, effective_counts))
+        total_n += n
+        del effective_counts
+        del similarity
+        del abundances
+    return total_n, all_effective_counts
 
 def big_o_what():
     times = {}
