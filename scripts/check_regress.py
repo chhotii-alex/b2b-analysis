@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 import subprocess
 import pickle
+import numpy as np
 from analysis import get_metacommunity
 
 parser = ArgumentParser(
@@ -8,17 +9,22 @@ parser = ArgumentParser(
     description="does regression test on analysis")
 parser.add_argument('-m', '--mode', choices=['pre', 'post'],
                     help='Run with --mode pre to define baseline; run with --mode post to test that results are same as baseline.')
+parser.add_argument('-n', '--number', type=int,
+                    default=8,
+                    help='number of communities')
 args = parser.parse_args()
 
-_, effective_counts = get_metacommunity(8)
+filename = 'prev%d.pkl' % args.number
+
+_, effective_counts = get_metacommunity(args.number)
 
 if args.mode == 'pre':
-    with open('prev.pkl', 'wb') as file:
+    with open(filename, 'wb') as file:
         pickle.dump(effective_counts, file)
 else:
-    with open('prev.pkl', 'rb') as file:
+    with open(filename, 'rb') as file:
         prev_counts = pickle.load(file)
     assert effective_counts.shape == prev_counts.shape
-    assert (effective_counts != prev_counts).max() == False
+    assert np.isclose(effective_counts.toarray(), prev_counts.toarray()).all()
 print("Done! Good!")
 subprocess.run(['say', 'Done!'])
