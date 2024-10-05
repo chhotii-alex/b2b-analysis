@@ -11,13 +11,14 @@ parser.add_argument('-m', '--mode', choices=['pre', 'post'],
 args = parser.parse_args()
 
 _, effective_counts = get_metacommunity(8)
-filename = "prev.npy"
+
 if args.mode == 'pre':
     with open('prev.pkl', 'wb') as file:
         pickle.dump(effective_counts, file)
 else:
     with open('prev.pkl', 'rb') as file:
         prev_counts = pickle.load(file)
+    assert effective_counts.shape == prev_counts.shape
     assert (effective_counts != prev_counts).max() == False
 print("Done! Good!")
 subprocess.run(['say', 'Done!'])
