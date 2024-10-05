@@ -256,7 +256,7 @@ def get_metacommunity(file_count):
     """
     total_n = 0
     all_effective_counts = None
-    for j_gene in  get_distinct_J_genes(file_count):
+    for j_gene in  get_distinct_values(file_count, 'Jgene'):
         communities = [
             (name_from_filepath(filepath), genes_of_type(filepath, jgene=j_gene))
             for filepath in sample_data_files(file_count)
