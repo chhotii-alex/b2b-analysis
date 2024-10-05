@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 import time
+import psutil
 from kmer import KmerDistanceCalculator
 
 key_names = ["Jgene", "Vgene", "cdr3_len", "cdr3_AA"]
@@ -233,12 +234,19 @@ def profile_similiarity(similarity):
         print("(%f, %f]: %f : %f" % (lower, upper, frac, cum))
     print(similarity.nnz / count)
 
-def get_distinct_J_genes(file_count):
+def get_distinct_values(file_count, col='Jgene'):
     all_j = set()
     for filepath in sample_data_files(file_count):
         df = genes_of_type(filepath)
-        all_j |= set(df['Jgene'].unique())
+        all_j |= set(df[col].unique())
     return sorted(list(all_j))
+
+def note_ram(quit_on_swap=False):
+    mem = psutil.virtual_memory()
+    if mem.percent > 75:
+        print("SWAP!")
+    if quit_on_swap:
+        assert mem.percent <= 75 
 
 def get_metacommunity(file_count):
     """
@@ -255,6 +263,8 @@ def get_metacommunity(file_count):
         ]
         sequences, n = concat_community(communities)
         print("Did concat_community")
+        if sequences.shape[0] < 1:
+            continue
 
         (sorted_seq, abundances) = abundances_and_dedup(communities, sequences, key_names)
         print("Did abundances_and_dedup")
