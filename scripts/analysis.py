@@ -170,6 +170,9 @@ def make_kmer_vectors(sorted_seq):
 
 
 def make_similarity(sorted_seq):
+    # TODO: these should be tweakable
+    max_load = 1024*1024*64
+    max_strip_size = max_load*4
     kmers = make_kmer_vectors(sorted_seq)
     n = sorted_seq.shape[0]
     # Motivation for selection of lil_array:
@@ -177,11 +180,11 @@ def make_similarity(sorted_seq):
     # coo_array or dia_array does not support item assignment, so how to assign?
     # csc_array or csr_array, when assigning, gives a warning that changing the sparsity ineffecient, lil recommended
     # dok_array is vastly slower; it's both vastly slower to assign by numeric index, and to convert to csr format.
-    lil = sparse.lil_array((n, n), dtype=float)
     sorted_seq["index"] = sorted_seq.index
     breaks = sorted_seq.drop_duplicates(subset=["Jgene", "Vgene", "cdr3_len"]).drop(
         columns="cdr3_AA"
     )
+    lil = None
     for i in range(breaks.shape[0]):
         for j in range(i, breaks.shape[0]):
             if breaks.iloc[i]["Vgene"] != breaks.iloc[j]["Vgene"]:
@@ -201,11 +204,24 @@ def make_similarity(sorted_seq):
                 to_end = breaks.iloc[j + 1]["index"]
             else:
                 to_end = n
-            s = calculate_similarity(kmers, from_start, from_end, to_start, to_end)
-            lil[from_start:from_end, to_start:to_end] = s
-            if from_start != to_start:
-                lil[to_start:to_end, from_start:from_end] = s.T
-    return lil.tocsr()
+            chunk_size = int(max_strip_size/(to_end - to_start))
+            if chunk_size < 1:
+                chunk_size = 1
+            for from_start_chunk in range(from_start, from_end, chunk_size):
+                from_end_chunk = from_start_chunk + chunk_size
+                if from_end_chunk > from_end:
+                    from_end_chunk = from_end
+                s = calculate_similarity(kmers, from_start_chunk, from_end_chunk, to_start, to_end)
+                if lil is None:
+                    lil = sparse.lil_array((n, n), dtype=float)
+                lil[from_start_chunk:from_end_chunk, to_start:to_end] = s
+                if from_start != to_start:
+                    lil[to_start:to_end, from_start_chunk:from_end_chunk] = s.T
+                if lil.nnz >= max_load:
+                    yield lil.tocsr()
+                    lil = None
+    if lil is not None:
+        yield lil.tocsr()
 
 def concat_community(communities):
     sequences = pd.concat([df for (name, df) in communities])
@@ -246,7 +262,8 @@ def note_ram(quit_on_swap=False):
     if mem.percent > 75:
         print("SWAP!")
     if quit_on_swap:
-        assert mem.percent <= 75 
+        assert mem.percent <= 75
+    return mem.percent
 
 def get_metacommunity(file_count):
     """
@@ -271,16 +288,19 @@ def get_metacommunity(file_count):
         del communities
         del sequences
         convert_index_to_columns(sorted_seq)
-        similarity = make_similarity(sorted_seq)
-        #profile_similiarity(similarity)
-        print("Did make_similarity")
-        del sorted_seq
-        effective_counts = similarity @ abundances
+        effective_counts = None
+        for similarity in make_similarity(sorted_seq):
+            if effective_counts is None:
+                effective_counts = similarity @ abundances
+            else:
+                effective_counts = effective_counts + (similarity @ abundances)
+            note_ram(True)
         if all_effective_counts is None:
             all_effective_counts = effective_counts
         else:
             all_effective_counts = sparse.vstack((all_effective_counts, effective_counts))
         total_n += n
+        del sorted_seq
         del effective_counts
         del similarity
         del abundances
