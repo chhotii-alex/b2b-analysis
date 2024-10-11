@@ -20,7 +20,7 @@ def sample_data_files(maxcount=6):
             continue
         yield filepath
         count += 1
-        if count >= maxcount:
+        if maxcount is not None and count >= maxcount:
             break
 
 def drop_rows_with_mask(df, drop_mask):
@@ -35,13 +35,14 @@ def name_from_filepath(filepath):
 
 
 def genes_of_type(filepath, chain="IGH", functional=True,
-                  jgene=None):
+                  jgene=None, equal_count=None):
     interesting_columns = [
         "cdr3_AA",
         "Vgene",
         "Jgene",
         "chain",
         "rearrangement_type",
+        "UMI_family_size",
     ]
     df = pd.read_csv(filepath, usecols=interesting_columns)
     drop_mask = df["chain"] != chain
@@ -52,16 +53,20 @@ def genes_of_type(filepath, chain="IGH", functional=True,
         type_tag = "nonfunctional"
     drop_mask = df["rearrangement_type"] != type_tag
     drop_rows_with_mask(df, drop_mask)
-    df.drop(columns=["chain", "rearrangement_type"], inplace=True)
-    if jgene is not None:
-        mask = df['Jgene'] != jgene
-        drop_rows_with_mask(df, mask)
     df["cdr3_len"] = df["cdr3_AA"].str.len()
     too_short_mask = df["cdr3_len"] < 3
     if too_short_mask.sum():
         drop_rows_with_mask(df, too_short_mask)
-    df["observed"] = 1
-    df = df.groupby(key_names).count()
+    df.sort_values(by="UMI_family_size", ascending=False, inplace=True, ignore_index=True)
+    if equal_count is not None:
+        df = df.iloc[:equal_count]
+        equal_count = df.shape[0]
+    df.drop(columns=["UMI_family_size", "chain", "rearrangement_type"], inplace=True)
+    if jgene is not None:
+        mask = df['Jgene'] != jgene
+        drop_rows_with_mask(df, mask)
+    df["observed"] = 1.0 / equal_count
+    df = df.groupby(key_names).sum()
     df.reset_index(drop=False, inplace=True)
     return df
 
@@ -171,7 +176,7 @@ def make_kmer_vectors(sorted_seq):
 
 def make_similarity(sorted_seq):
     # TODO: these should be tweakable
-    max_load = 1024*1024*64
+    max_load = 1024*1024*16
     max_strip_size = max_load*4
     kmers = make_kmer_vectors(sorted_seq)
     n = sorted_seq.shape[0]
@@ -250,13 +255,24 @@ def profile_similiarity(similarity):
         print("(%f, %f]: %f : %f" % (lower, upper, frac, cum))
     print(similarity.nnz / count)
 
-def get_distinct_values(file_count, col='Jgene'):
-    all_j = set()
-    for filepath in sample_data_files(file_count):
-        df = genes_of_type(filepath)
-        all_j |= set(df[col].unique())
-    return sorted(list(all_j))
+def get_distinct_values(col='Jgene'):
+    filename = f"{col}.txt"
+    cachepath = datadir / filename
+    if cachepath.is_file():
+        with open(cachepath, "r") as f:
+            all_j = [s.strip() for s in f.readlines()]
+    else:
+        all_j = set()
+        for filepath in sample_data_files():
+            df = genes_of_type(filepath)
+            all_j |= set(df[col].unique())
+        all_j = sorted(list(all_j))
+        with open(cachepath, "w") as f:
+            for j_gene in all_j:
+                f.write(f"{j_gene}\n")
+    return all_j
 
+# TODO: this seems inaccurate in its assessment of memory pressure; improve
 def note_ram(quit_on_swap=False):
     mem = psutil.virtual_memory()
     if mem.percent > 75:
@@ -271,11 +287,12 @@ def get_metacommunity(file_count):
     * try all different sparse data structure options
     * do similarity in stripes (like greylock (use greylock?))
     """
+    equal_count = 4000
     total_n = 0
     all_effective_counts = None
-    for j_gene in  get_distinct_values(file_count, 'Jgene'):
+    for j_gene in  get_distinct_values('Jgene'):
         communities = [
-            (name_from_filepath(filepath), genes_of_type(filepath, jgene=j_gene))
+            (name_from_filepath(filepath), genes_of_type(filepath, jgene=j_gene, equal_count=equal_count))
             for filepath in sample_data_files(file_count)
         ]
         sequences, n = concat_community(communities)
@@ -294,27 +311,41 @@ def get_metacommunity(file_count):
                 effective_counts = similarity @ abundances
             else:
                 effective_counts = effective_counts + (similarity @ abundances)
-            note_ram(True)
+            note_ram(False)
         if all_effective_counts is None:
             all_effective_counts = effective_counts
+            all_abundances = abundances
         else:
             all_effective_counts = sparse.vstack((all_effective_counts, effective_counts))
+            all_abundances = sparse.vstack((all_abundances, abundances))
         total_n += n
         del sorted_seq
         del effective_counts
         del similarity
         del abundances
-    return total_n, all_effective_counts
+    print(all_effective_counts.todense())
+    return total_n, all_effective_counts, all_abundances
+
+def do_diversity(filecount=8):
+    total_n, all_effective_counts, all_abundances = get_metacommunity(filecount)
+    all_effective_counts = all_effective_counts.todense()
+    is_nonzero = all_effective_counts > 1e-9
+    result = np.zeros(shape=all_effective_counts.shape, dtype=np.float64)
+    np.power(all_effective_counts, -1, where=is_nonzero, out=result)
+    for i in range(all_effective_counts.shape[1]):
+        a = result[:, i].T
+        b = all_abundances[:, [i]].todense()
+        diversity =  a @ b
+        print(diversity)
 
 def big_o_what():
     times = {}
-    for file_count in [2, 4, 8, 16]:
+    for file_count in [16, 32, 64, 75, 88, 100]:
         t0 = time.time()
-        n, _ = get_metacommunity(file_count)
+        do_diversity(file_count)
         t1 = time.time()
         print("Time: ", (t1-t0))
-        print(n / (t1-t0))
-        times[n] = (t1-t0)
+        times[file_count] = (t1-t0)
     print()
     for n, seconds in times.items():
         print(n, seconds, n/seconds)
@@ -326,4 +357,5 @@ print(communities.memory_usage() / (1024*1024))
 """
 
 if __name__ == '__main__':
-    get_metacommunity(8)
+    big_o_what()
+
