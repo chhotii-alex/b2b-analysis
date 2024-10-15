@@ -65,7 +65,10 @@ def genes_of_type(filepath, chain="IGH", functional=True,
     if jgene is not None:
         mask = df['Jgene'] != jgene
         drop_rows_with_mask(df, mask)
-    df["observed"] = 1.0 / equal_count
+    if equal_count is None:
+        df["observed"] = 1.0
+    else:
+        df["observed"] = 1.0 / equal_count
     df = df.groupby(key_names).sum()
     df.reset_index(drop=False, inplace=True)
     return df

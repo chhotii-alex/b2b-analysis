@@ -4,3 +4,4 @@ data
 *.prof
 *.pkl
 oldresults
+venv
