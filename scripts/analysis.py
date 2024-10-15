@@ -285,11 +285,6 @@ def note_ram(quit_on_swap=False):
     return mem.percent
 
 def get_metacommunity(file_count):
-    """
-    Things to try:
-    * try all different sparse data structure options
-    * do similarity in stripes (like greylock (use greylock?))
-    """
     equal_count = 4000
     total_n = 0
     all_effective_counts = None

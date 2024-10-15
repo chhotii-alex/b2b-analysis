@@ -1,11 +1,36 @@
+* don't name variables V and J if nothing to do with those genes (see sparse_abundances and make_kmer_vectors)
 
+* Look for data in the Medusa directory
 
-To keep memory pressure low, only do one V/J genes combination at a time, and stack the resulting effective counts matrices. DONE doing only one J gene at a time;
-doing only one V/J at a time is overkill (other measures are in place to minimize memory pressure).
+* Chose samples by disease status (from one-hot encoding spreadsheet)
 
-This is DONE, however it remains to chose N well, and decide what to do when the number of relevant genes in a sample is less than N (some samples have very very few IGH! wtf?)
-There may be artifact due to different numbers of sequence/UMIs (rows) per sample? Only take the N most-read sequence+UMIs (rows) of
-the given type? Tricky because:
-1) are sample spreadsheets just concatenations of replicate spreadsheets? In which case sorting (by UMI_family_size?) is required DONE sorting done (although it seems that it's
-already so sorted)
-2) If we are doing one Vgene/Jgene combination at a time-- don't know how many of each type. Truncate, then filter. DONE
+* any weird, rare V genes?
+
+* greylock: compare results; refactor greylock so I can use greylock
+
+* adaptive max load in make_similarity?
+
+* argparse:
+- number of genes per sample to truncate to
+- chain type
+- k for kmers (with the sparseness code, k > 3 tractable? test that)
+- max length diff for nonzero similarity
+
+* some V genes in same clade? parse clade? more similar within clade? parameterize how much to clump?
+
+* For a given type of gene (for example, functional IGH) do not use all the sequences; use only the top N (ranked by UMI_family_size). I think this is desirable, lest there
+be artifact. I'm doing this now; however, two issues:
+1) What should N be?
+2) What to do with samples with fewer than N sequences of that type?
+These issues are somewhat in tension; if I chose a small N, more of the data is thrown out; however if I chose a large N, more samples have fewer than that number of sequences.
+How much is the number of distinct sequence + UMI pairs read a function of how many B cells a patient has, and how much is it a function of processing artifacts?
+a) Look at the actual distributions of numbers of genes read per sample
+b) Discuss with Ramy
+
+* OOP some separations of concerns
+
+* Look at Pattern Classification book. What was in there-- trie?
+
+* Look at Hoissein's idea; look at Reeve; meaning of the off-diagonals (comm1 vs. comm2)?
+
+* Box cli for obtaining data (separate project)
