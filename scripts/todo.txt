@@ -1,8 +1,11 @@
 
 
-To keep memory pressure low, only do one V/J genes combination at a time, and stack the resulting effective counts matrices.
+To keep memory pressure low, only do one V/J genes combination at a time, and stack the resulting effective counts matrices. DONE doing only one J gene at a time;
+doing only one V/J at a time is overkill (other measures are in place to minimize memory pressure).
 
+This is DONE, however it remains to chose N well, and decide what to do when the number of relevant genes in a sample is less than N (some samples have very very few IGH! wtf?)
 There may be artifact due to different numbers of sequence/UMIs (rows) per sample? Only take the N most-read sequence+UMIs (rows) of
 the given type? Tricky because:
-1) are sample spreadsheets just concatenations of replicate spreadsheets? In which case sorting (by UMI_family_size?) is required
-2) If we are doing one Vgene/Jgene combination at a time-- don't know how many of each type. Truncate, then filter.
+1) are sample spreadsheets just concatenations of replicate spreadsheets? In which case sorting (by UMI_family_size?) is required DONE sorting done (although it seems that it's
+already so sorted)
+2) If we are doing one Vgene/Jgene combination at a time-- don't know how many of each type. Truncate, then filter. DONE
