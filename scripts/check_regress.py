@@ -1,3 +1,4 @@
+import platform
 from argparse import ArgumentParser
 import subprocess
 import pickle
@@ -16,7 +17,7 @@ args = parser.parse_args()
 
 filename = 'prev%d.pkl' % args.number
 
-_, effective_counts = get_metacommunity(args.number)
+_, effective_counts, abundances = get_metacommunity(args.number)
 
 if args.mode == 'pre':
     with open(filename, 'wb') as file:
@@ -27,4 +28,5 @@ else:
     assert effective_counts.shape == prev_counts.shape
     assert np.isclose(effective_counts.toarray(), prev_counts.toarray()).all()
 print("Done! Good!")
-subprocess.run(['say', 'Done!'])
+if platform.system() == 'Darwin':  # This only set up on Mac
+    subprocess.run(['say', 'Done!'])
