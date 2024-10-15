@@ -1,5 +1,3 @@
-* don't name variables V and J if nothing to do with those genes (see sparse_abundances and make_kmer_vectors)
-
 * Look for data in the Medusa directory
 
 * Chose samples by disease status (from one-hot encoding spreadsheet)

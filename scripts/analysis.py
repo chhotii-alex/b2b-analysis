@@ -109,16 +109,16 @@ def sparse_abundances(communities, seq_count, dedup_indices):
         n = df.shape[0]
         df["dedup_index"] = dedup_indices[offset : (offset + n)]
 
-    V = np.concatenate([np.array(df["observed"]) for (name, df) in communities])
-    J = np.concatenate(
+    values = np.concatenate([np.array(df["observed"]) for (name, df) in communities])
+    col_indices = np.concatenate(
         [np.full((df.shape[0],), i) for i, (name, df) in enumerate(communities)]
     )
-    I = np.concatenate([np.array(df["dedup_index"]) for (name, df) in communities])
-    assert V.shape == I.shape
-    assert I.shape == J.shape
+    row_indices = np.concatenate([np.array(df["dedup_index"]) for (name, df) in communities])
+    assert values.shape == row_indices.shape
+    assert row_indices.shape == col_indices.shape
     rows = seq_count
     cols = len(communities)
-    abundances = sparse.coo_array((V, (I, J)), shape=(rows, cols)).tocsr()
+    abundances = sparse.coo_array((values, (row_indices, col_indices)), shape=(rows, cols)).tocsr()
     return abundances
 
 
@@ -159,20 +159,20 @@ def calculate_similarity(kmers, from_start, from_end, to_start, to_end):
 
 def make_kmer_vectors(sorted_seq):
     calc = KmerDistanceCalculator(3)
-    Vs = []
-    Js = []
-    Is = []
+    value_arrays = []
+    col_index_arrays = []
+    row_index_arrays = []
     for i, row in enumerate(sorted_seq.itertuples()):
-        V, J = calc.kmer_vector_sparse(row.cdr3_AA)
-        I = np.full_like(V, i)
-        Vs.append(V)
-        Js.append(J)
-        Is.append(I)
-    V = np.concatenate(Vs)
-    J = np.concatenate(Js)
-    I = np.concatenate(Is)
+        value_array, col_index_array = calc.kmer_vector_sparse(row.cdr3_AA)
+        row_index_array = np.full_like(value_array, i)
+        value_arrays.append(value_array)
+        col_index_arrays.append(col_index_array)
+        row_index_arrays.append(row_index_array)
+    value_array = np.concatenate(value_arrays)
+    col_index_array = np.concatenate(col_index_arrays)
+    row_index_array = np.concatenate(row_index_arrays)
     kmers = sparse.coo_array(
-        (V, (I, J)), shape=(sorted_seq.shape[0], len(calc.omega))
+        (value_array, (row_index_array, col_index_array)), shape=(sorted_seq.shape[0], len(calc.omega))
     ).tocsr()
     return kmers
 
