@@ -1,5 +1,3 @@
-* sort sample records so we always get the same ones
-
 * any weird, rare V genes?
 
 * greylock: compare results; refactor greylock so I can use greylock
@@ -24,6 +22,8 @@ a) Look at the actual distributions of numbers of genes read per sample
 b) Discuss with Ramy
 
 * OOP some separations of concerns
+
+* everything in little pieces suitable for nextflow workflow for re-startability
 
 * matching samples by sex, age, batch, etc.
 

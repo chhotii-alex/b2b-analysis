@@ -34,8 +34,27 @@ def get_manifest_records():
 
 
 def get_samples(cohort, set_size=100):
+    """
+    Arguments:
+
+    cohort-- must be one of the cohort (not category) labels in the OneHotEncoding spreadsheet
+
+    set_size-- number of files to return (of which 50% will be in the cohort, 50% not). Not enforced
+    that this is an even number. If set_size is None, the number of files returned will be 2x the
+    number of patients in the given cohort.
+    
+      Note that this sorts samples by B2B ID and keeps only the first for each patient.
+    Sorting by B2B ID is equivalent to sorting by time.
+    Thus,
+    1) will choose the EARLIEST sample for each patient
+    2) the non-cohort samples selected are a fairly arbitrary set, distinguished ONLY by
+    having the lowest B2B ID.
+    This is not at all what we want long-term, so this will be replaced by something more
+    sophisticated.
+    """
     the_path = datadir / "CohortOneHotEncoding.xlsx"
     df = pd.read_excel(the_path)
+    df.sort_values(by="ID", inplace=True)
     manifest_records = get_manifest_records()
     manifest_records.drop_duplicates(subset="Sample Barcode", inplace=True)
     m = df.merge(manifest_records, how="left", left_on="ID", right_on="Sample Barcode", validate="1:1", indicator=True)
@@ -44,12 +63,15 @@ def get_samples(cohort, set_size=100):
     df.dropna(subset="Roche Sample ID", inplace=True)
     df.drop_duplicates(subset="unique pat id", keep="first", inplace=True,
                        ignore_index=True)
-    class_size = set_size // 2
     col = "in %s cohort" % cohort
     mask = df[col]
-    if mask.sum() < class_size:
-        print("Number of samples in cohort already sequenced: %d" % mask.sum())
-        raise Exception("Not enough samples in cohort!")
+    if set_size is None:
+        class_size = mask.sum()
+    else:
+        class_size = set_size // 2
+        if mask.sum() < class_size:
+            print("Number of samples in cohort already sequenced: %d" % mask.sum())
+            raise Exception("Not enough samples in cohort!")
     if (~mask).sum() < class_size:
         raise Exception("Not enough non-cohort samples!")
     mask = df[col]

@@ -352,5 +352,6 @@ print(communities.memory_usage() / (1024*1024))
 """
 
 if __name__ == '__main__':
-    big_o_what()
+    do_diversity(filecount=None)
+
 
