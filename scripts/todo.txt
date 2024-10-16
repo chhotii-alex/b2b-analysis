@@ -1,6 +1,4 @@
-* Look for data in the Medusa directory
-
-* Chose samples by disease status (from one-hot encoding spreadsheet)
+* sort sample records so we always get the same ones
 
 * any weird, rare V genes?
 
@@ -26,6 +24,8 @@ a) Look at the actual distributions of numbers of genes read per sample
 b) Discuss with Ramy
 
 * OOP some separations of concerns
+
+* matching samples by sex, age, batch, etc.
 
 * Look at Pattern Classification book. What was in there-- trie?
 

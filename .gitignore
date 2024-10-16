@@ -5,3 +5,5 @@ data
 *.pkl
 oldresults
 venv
+cached
+*~

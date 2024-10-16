@@ -5,17 +5,14 @@ from scipy import sparse
 import time
 import psutil
 from kmer import KmerDistanceCalculator
+from get_sample_data import get_samplefile_selection
 
 key_names = ["Jgene", "Vgene", "cdr3_len", "cdr3_AA"]
-
-reldir = Path("..")
-datadir = reldir / "data"
-samplesdir = datadir / "Sample_Level_Data_Files"
 
 
 def sample_data_files(maxcount=6):
     count = 0
-    for filepath in samplesdir.iterdir():
+    for filepath in get_samplefile_selection(set_size=maxcount):
         if not filepath.name.endswith("cdr3_report.csv"):
             continue
         yield filepath
@@ -260,7 +257,7 @@ def profile_similiarity(similarity):
 
 def get_distinct_values(col='Jgene'):
     filename = f"{col}.txt"
-    cachepath = datadir / filename
+    cachepath = Path("..") / "cached" / filename
     if cachepath.is_file():
         with open(cachepath, "r") as f:
             all_j = [s.strip() for s in f.readlines()]
