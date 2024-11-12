@@ -6,6 +6,7 @@ import time
 import psutil
 from kmer import KmerDistanceCalculator
 from get_sample_data import get_samplefile_selection
+from util import drop_rows_with_mask
 
 key_names = ["Jgene", "Vgene", "cdr3_len", "cdr3_AA"]
 
@@ -19,11 +20,6 @@ def sample_data_files(maxcount=6):
         count += 1
         if maxcount is not None and count >= maxcount:
             break
-
-def drop_rows_with_mask(df, drop_mask):
-    dropped_indices = df[drop_mask].index
-    df.drop(index=dropped_indices, inplace=True)
-    df.reset_index(drop=True, inplace=True)
 
 
 def name_from_filepath(filepath):

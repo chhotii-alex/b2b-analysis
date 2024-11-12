@@ -1,4 +1,5 @@
 import re
+from collections import defaultdict
 from pathlib import Path
 import pandas as pd
 
@@ -30,6 +31,7 @@ def get_manifest_records():
     df["Sample ID"] = (
         "MDS_" + df["EPatID"].astype(str) + "_" + df["ECaseID"].astype(str).str.zfill(2)
     )
+    df.reset_index(inplace=True)
     return df
 
 
@@ -97,6 +99,9 @@ def get_sample_level_directories():
         sample_dir = onedir / "Sample_Level_Data_Files"
         yield sample_dir
 
+def get_replicate_level_directories():
+    for onedir, _ in get_batch_directories():
+        yield onedir / "Technical_Replicate_Level_Data_Files"
 
 def get_sample_files():
     name_pattern = re.compile(r"(MDS_\d+_\d+)_cdr3_report.csv")
@@ -106,10 +111,24 @@ def get_sample_files():
             if m:
                 yield child, m.group(1)
 
+def get_replicate_files():
+    name_pattern = re.compile(r"(MDS_\d+_\d+)_\d+_.*_cdr3_report.csv")
+    for batch_dir in get_replicate_level_directories():
+        for child in batch_dir.iterdir():
+            m = name_pattern.match(child.name)
+            if m:
+                yield child, m.group(1)
+                
 def get_sequencefile_lookup():
     d = {}
     for apath, sampleID in get_sample_files():
         d[sampleID] = apath
+    return d
+
+def get_repfile_lookup():
+    d = defaultdict(list)
+    for apath, sampleID in get_replicate_files():
+        d[sampleID].append(apath)
     return d
 
 def get_samplefile_selection(cohort="PROSTATE", set_size=70):

@@ -7,3 +7,5 @@ oldresults
 venv
 cached
 *~
+*.ipynb
+.ipynb_checkpoints
