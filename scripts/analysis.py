@@ -27,8 +27,7 @@ def name_from_filepath(filepath):
     return name[:12]
 
 
-def genes_of_type(filepath, chain="IGH", functional=True,
-                  jgene=None, equal_count=None):
+def genes_of_type(filepath, chain="IGH", functional=True, jgene=None, equal_count=None):
     interesting_columns = [
         "cdr3_AA",
         "Vgene",
@@ -50,13 +49,15 @@ def genes_of_type(filepath, chain="IGH", functional=True,
     too_short_mask = df["cdr3_len"] < 3
     if too_short_mask.sum():
         drop_rows_with_mask(df, too_short_mask)
-    df.sort_values(by="UMI_family_size", ascending=False, inplace=True, ignore_index=True)
+    df.sort_values(
+        by="UMI_family_size", ascending=False, inplace=True, ignore_index=True
+    )
     if equal_count is not None:
         df = df.iloc[:equal_count]
         equal_count = df.shape[0]
     df.drop(columns=["UMI_family_size", "chain", "rearrangement_type"], inplace=True)
     if jgene is not None:
-        mask = df['Jgene'] != jgene
+        mask = df["Jgene"] != jgene
         drop_rows_with_mask(df, mask)
     if equal_count is None:
         df["observed"] = 1.0
@@ -106,12 +107,16 @@ def sparse_abundances(communities, seq_count, dedup_indices):
     col_indices = np.concatenate(
         [np.full((df.shape[0],), i) for i, (name, df) in enumerate(communities)]
     )
-    row_indices = np.concatenate([np.array(df["dedup_index"]) for (name, df) in communities])
+    row_indices = np.concatenate(
+        [np.array(df["dedup_index"]) for (name, df) in communities]
+    )
     assert values.shape == row_indices.shape
     assert row_indices.shape == col_indices.shape
     rows = seq_count
     cols = len(communities)
-    abundances = sparse.coo_array((values, (row_indices, col_indices)), shape=(rows, cols)).tocsr()
+    abundances = sparse.coo_array(
+        (values, (row_indices, col_indices)), shape=(rows, cols)
+    ).tocsr()
     return abundances
 
 
@@ -150,6 +155,7 @@ def calculate_similarity(kmers, from_start, from_end, to_start, to_end):
     b = kmers[to_start:to_end].T
     return a @ b
 
+
 def make_kmer_vectors(sorted_seq):
     calc = KmerDistanceCalculator(3)
     value_arrays = []
@@ -165,15 +171,16 @@ def make_kmer_vectors(sorted_seq):
     col_index_array = np.concatenate(col_index_arrays)
     row_index_array = np.concatenate(row_index_arrays)
     kmers = sparse.coo_array(
-        (value_array, (row_index_array, col_index_array)), shape=(sorted_seq.shape[0], len(calc.omega))
+        (value_array, (row_index_array, col_index_array)),
+        shape=(sorted_seq.shape[0], len(calc.omega)),
     ).tocsr()
     return kmers
 
 
 def make_similarity(sorted_seq):
     # TODO: these should be tweakable
-    max_load = 1024*1024*16
-    max_strip_size = max_load*4
+    max_load = 1024 * 1024 * 16
+    max_strip_size = max_load * 4
     kmers = make_kmer_vectors(sorted_seq)
     n = sorted_seq.shape[0]
     # Motivation for selection of lil_array:
@@ -205,14 +212,16 @@ def make_similarity(sorted_seq):
                 to_end = breaks.iloc[j + 1]["index"]
             else:
                 to_end = n
-            chunk_size = int(max_strip_size/(to_end - to_start))
+            chunk_size = int(max_strip_size / (to_end - to_start))
             if chunk_size < 1:
                 chunk_size = 1
             for from_start_chunk in range(from_start, from_end, chunk_size):
                 from_end_chunk = from_start_chunk + chunk_size
                 if from_end_chunk > from_end:
                     from_end_chunk = from_end
-                s = calculate_similarity(kmers, from_start_chunk, from_end_chunk, to_start, to_end)
+                s = calculate_similarity(
+                    kmers, from_start_chunk, from_end_chunk, to_start, to_end
+                )
                 if lil is None:
                     lil = sparse.lil_array((n, n), dtype=float)
                 lil[from_start_chunk:from_end_chunk, to_start:to_end] = s
@@ -224,13 +233,16 @@ def make_similarity(sorted_seq):
     if lil is not None:
         yield lil.tocsr()
 
+
 def concat_community(communities):
     sequences = pd.concat([df for (name, df) in communities])
     n = sequences.shape[0]
     return sequences, n
 
+
 def convert_index_to_columns(df):
     df.reset_index(drop=False, inplace=True)
+
 
 def profile_similiarity(similarity):
     """
@@ -240,18 +252,19 @@ def profile_similiarity(similarity):
     """
     dense = similarity.toarray()
     num_bins = 20
-    count = dense.shape[0]*(dense.shape[0])
+    count = dense.shape[0] * (dense.shape[0])
     cum = 0.0
     for x in range(num_bins):
-        lower = x/num_bins
-        upper = (x+1)/num_bins
+        lower = x / num_bins
+        upper = (x + 1) / num_bins
         mask = (dense > lower) & (dense <= upper)
-        frac = mask.sum()/count
+        frac = mask.sum() / count
         cum += frac
         print("(%f, %f]: %f : %f" % (lower, upper, frac, cum))
     print(similarity.nnz / count)
 
-def get_distinct_values(col='Jgene'):
+
+def get_distinct_values(col="Jgene"):
     filename = f"{col}.txt"
     cachepath = Path("..") / "cached" / filename
     if cachepath.is_file():
@@ -268,6 +281,7 @@ def get_distinct_values(col='Jgene'):
                 f.write(f"{j_gene}\n")
     return all_j
 
+
 # TODO: this seems inaccurate in its assessment of memory pressure; improve
 def note_ram(quit_on_swap=False):
     mem = psutil.virtual_memory()
@@ -277,13 +291,18 @@ def note_ram(quit_on_swap=False):
         assert mem.percent <= 75
     return mem.percent
 
+
 def get_metacommunity(file_count):
     equal_count = 4000
     total_n = 0
     all_effective_counts = None
-    for j_gene in  get_distinct_values('Jgene'):
+    # TODO: only call sample_data_files once, not for each jgene
+    for j_gene in get_distinct_values("Jgene"):
         communities = [
-            (name_from_filepath(filepath), genes_of_type(filepath, jgene=j_gene, equal_count=equal_count))
+            (
+                name_from_filepath(filepath),
+                genes_of_type(filepath, jgene=j_gene, equal_count=equal_count),
+            )
             for filepath in sample_data_files(file_count)
         ]
         sequences, n = concat_community(communities)
@@ -291,7 +310,9 @@ def get_metacommunity(file_count):
         if sequences.shape[0] < 1:
             continue
 
-        (sorted_seq, abundances) = abundances_and_dedup(communities, sequences, key_names)
+        (sorted_seq, abundances) = abundances_and_dedup(
+            communities, sequences, key_names
+        )
         print("Did abundances_and_dedup")
         del communities
         del sequences
@@ -307,7 +328,9 @@ def get_metacommunity(file_count):
             all_effective_counts = effective_counts
             all_abundances = abundances
         else:
-            all_effective_counts = sparse.vstack((all_effective_counts, effective_counts))
+            all_effective_counts = sparse.vstack(
+                (all_effective_counts, effective_counts)
+            )
             all_abundances = sparse.vstack((all_abundances, abundances))
         total_n += n
         del sorted_seq
@@ -316,6 +339,7 @@ def get_metacommunity(file_count):
         del abundances
     print(all_effective_counts.todense())
     return total_n, all_effective_counts, all_abundances
+
 
 def do_diversity(filecount=8):
     total_n, all_effective_counts, all_abundances = get_metacommunity(filecount)
@@ -326,8 +350,9 @@ def do_diversity(filecount=8):
     for i in range(all_effective_counts.shape[1]):
         a = result[:, i].T
         b = all_abundances[:, [i]].todense()
-        diversity =  a @ b
+        diversity = a @ b
         print(diversity)
+
 
 def big_o_what():
     times = {}
@@ -335,19 +360,18 @@ def big_o_what():
         t0 = time.time()
         do_diversity(file_count)
         t1 = time.time()
-        print("Time: ", (t1-t0))
-        times[file_count] = (t1-t0)
+        print("Time: ", (t1 - t0))
+        times[file_count] = t1 - t0
     print()
     for n, seconds in times.items():
-        print(n, seconds, n/seconds)
-        
+        print(n, seconds, n / seconds)
+
+
 """
 how to view memory usage for data
 print("MB:")
 print(communities.memory_usage() / (1024*1024))
 """
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     do_diversity(filecount=None)
-
-
