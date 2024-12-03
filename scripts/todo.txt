@@ -1,3 +1,10 @@
+____ Use Jasper's Pymmunomics _____
+
+* In count_genes: currently n is fixed; set n to 2*(# available disease patients)
+* In count_genes: for each cohort patient, combine data from all their samples (this is correct for cancer patients, not sure what to do about infection)
+
+--- yeah  --
+
 * any weird, rare V genes?
 
 * greylock: compare results; refactor greylock so I can use greylock

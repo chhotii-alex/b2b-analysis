@@ -150,6 +150,7 @@ def get_cohort_samples(cohort, set_size=100):
     )
     annotate_metadata(df)
     in_cohort_col = "in %s cohort" % cohort
+    df["in_cohort"] = df[in_cohort_col]
     mask = df[in_cohort_col]
     if set_size is None:
         class_size = mask.sum()
@@ -255,6 +256,15 @@ def get_repfile_lookup():
         d[sampleID].append(apath)
     return d
 
+
+def get_samplefiles(cohort="PROSTATE", set_size=70):
+    filepath_lookup = get_sequencefile_lookup()
+    df = get_cohort_samples(cohort, set_size)
+    for row in df.iterrows():
+        filepath = filepath_lookup[row[1]["Roche Sample ID"]]
+        sample_id = row[1]["ID"]
+        in_cohort = row[1]["in_cohort"]
+        yield filepath, sample_id, in_cohort
 
 def get_samplefile_selection(cohort="PROSTATE", set_size=70):
     filepath_lookup = get_sequencefile_lookup()

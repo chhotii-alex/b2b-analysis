@@ -5,7 +5,7 @@ from scipy import sparse
 import time
 import psutil
 from kmer import KmerDistanceCalculator
-from get_sample_data import get_samplefile_selection
+from get_sample_data import get_samplefile_selection, get_cohort_samples
 from util import drop_rows_with_mask
 
 key_names = ["Jgene", "Vgene", "cdr3_len", "cdr3_AA"]
@@ -27,7 +27,7 @@ def name_from_filepath(filepath):
     return name[:12]
 
 
-def genes_of_type(filepath, chain="IGH", functional=True, jgene=None, equal_count=None):
+def genes_of_type(filepath, chain="IGH", functional=True, jgene=None, equal_count=None, attributes={}):
     interesting_columns = [
         "cdr3_AA",
         "Vgene",
@@ -65,6 +65,8 @@ def genes_of_type(filepath, chain="IGH", functional=True, jgene=None, equal_coun
         df["observed"] = 1.0 / equal_count
     df = df.groupby(key_names).sum()
     df.reset_index(drop=False, inplace=True)
+    for key, value in attributes.items():
+        df[key] = value
     return df
 
 
@@ -375,3 +377,4 @@ print(communities.memory_usage() / (1024*1024))
 
 if __name__ == "__main__":
     do_diversity(filecount=None)
+    
